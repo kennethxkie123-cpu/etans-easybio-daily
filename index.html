@@ -1,46 +1,632 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <!--
-    If you are serving your web app in a path other than the root, change the
-    href value below to reflect the base path you are serving from.
-
-    The path provided below has to start and end with a slash "/" in order for
-    it to work correctly.
-
-    For more details:
-    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
-
-    This is a placeholder for base href that will be replaced by the value of
-    the `--base-href` argument provided to `flutter build`.
-  -->
-  <base href="$FLUTTER_BASE_HREF">
-
   <meta charset="UTF-8">
-  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LayerHub ERP - Commercial Poultry Web Analytics Portal</title>
+  
+  <!-- Modern Typography & Icons -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700;800&family=Fira+Code:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Chart.js Library -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-  <!-- iOS meta tags & icons -->
-  <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="layer_hub">
-  <link rel="apple-touch-icon" href="icons/Icon-192.png">
-
-  <!-- Favicon -->
-  <link rel="icon" type="image/png" href="favicon.png"/>
-
-  <title>layer_hub</title>
-  <link rel="manifest" href="manifest.json">
+  <!-- App Stylesheet -->
+  <link rel="stylesheet" href="styles.css">
 </head>
-<body>
-  <!--
-    You can customize the "flutter_bootstrap.js" script.
-    This is useful to provide a custom configuration to the Flutter loader
-    or to give the user feedback during the initialization process.
+<body data-theme="dark">
 
-    For more details:
-    * https://docs.flutter.dev/platform-integration/web/initialization
-  -->
-  <script src="flutter_bootstrap.js" async></script>
+  <!-- Header & Global Controls -->
+  <header class="app-header">
+    <div class="header-container">
+      <div class="brand">
+        <div class="brand-icon">
+          <i class="fas fa-egg"></i>
+        </div>
+        <div class="brand-text">
+          <h1>LayerHub <span class="brand-badge"><span class="live-pulse-dot"></span> Enterprise Portal</span></h1>
+          <div style="font-size: 11px; color: var(--text-muted);">Commercial Poultry Farm Analytics & Offline-First ERP</div>
+        </div>
+      </div>
+
+      <div class="header-controls">
+        <!-- System Analysis Modal Button -->
+        <button class="btn btn-outline" id="open-arch-modal">
+          <i class="fas fa-microchip"></i> System Analysis
+        </button>
+
+        <!-- Building Selector -->
+        <div class="control-group">
+          <span class="control-label"><i class="fas fa-warehouse"></i> Building:</span>
+          <select id="building-select">
+            <option value="all">All Buildings (Farm Summary)</option>
+            <option value="1">Building 1 (Hy-Line Brown)</option>
+            <option value="2">Building 2 (Lohmann Brown)</option>
+            <option value="3">Building 3 (Novogen White)</option>
+            <option value="4">Building 4 (Dekalb White)</option>
+            <option value="5">Building 5 (Hy-Line W-36)</option>
+          </select>
+        </div>
+
+        <!-- Date Selector -->
+        <div class="control-group">
+          <span class="control-label"><i class="fas fa-calendar-alt"></i> Date:</span>
+          <select id="date-select"></select>
+        </div>
+
+        <!-- Theme Toggle -->
+        <button class="btn btn-secondary" id="theme-toggle-btn">
+          <i class="fas fa-moon"></i> Dark Mode
+        </button>
+
+        <!-- CSV Export -->
+        <button class="btn btn-primary" id="export-csv-btn">
+          <i class="fas fa-file-csv"></i> Export Data
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Navigation Tabs -->
+  <nav class="nav-tabs-bar">
+    <div class="nav-tabs-container">
+      <div class="nav-tab active" data-tab="tab-summary">
+        <i class="fas fa-chart-line"></i> Farm Overview & KPIs
+      </div>
+      <div class="nav-tab" data-tab="tab-buildings">
+        <div class="nav-tab-label"><i class="fas fa-building"></i> Building Matrix</div>
+      </div>
+      <div class="nav-tab" data-tab="tab-egg-matrix">
+        <i class="fas fa-boxes-stacked"></i> Egg Grading & Butal Analysis
+      </div>
+      <div class="nav-tab" data-tab="tab-mortality">
+        <i class="fas fa-heart-pulse"></i> Mortality & Health Log
+      </div>
+      <div class="nav-tab" data-tab="tab-weather">
+        <i class="fas fa-cloud-sun"></i> Weather & Environmental
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main View Container -->
+  <main class="main-wrapper">
+
+    <!-- TAB 1: EXECUTIVE SUMMARY & KPIS -->
+    <section id="tab-summary" class="tab-content active">
+      <!-- KPI Grid -->
+      <div class="kpi-grid">
+        <div class="kpi-card" style="--card-accent: #3b82f6;">
+          <div class="kpi-header">
+            <span class="kpi-title">Active Hen Population</span>
+            <div class="kpi-icon"><i class="fas fa-feather"></i></div>
+          </div>
+          <div class="kpi-value" id="kpi-population">62,450</div>
+          <div class="kpi-sub">
+            <span class="kpi-trend positive"><i class="fas fa-arrow-up"></i> 98.4%</span>
+            <span>of max farm capacity</span>
+          </div>
+        </div>
+
+        <div class="kpi-card" style="--card-accent: #10b981;">
+          <div class="kpi-header">
+            <span class="kpi-title">Hen-Day Laying Rate</span>
+            <div class="kpi-icon"><i class="fas fa-chart-pie"></i></div>
+          </div>
+          <div class="kpi-value" id="kpi-laying-rate">91.4%</div>
+          <div class="kpi-sub">
+            <span class="kpi-trend positive"><i class="fas fa-check"></i> +0.8%</span>
+            <span>above breed target</span>
+          </div>
+        </div>
+
+        <div class="kpi-card" style="--card-accent: #ef4444;">
+          <div class="kpi-header">
+            <span class="kpi-title">Daily Mortality Rate</span>
+            <div class="kpi-icon"><i class="fas fa-skull"></i></div>
+          </div>
+          <div class="kpi-value" id="kpi-mortality">0.021%</div>
+          <div class="kpi-sub">
+            <span class="kpi-trend positive"><i class="fas fa-shield-halved"></i> Normal</span>
+            <span>within tolerance threshold</span>
+          </div>
+        </div>
+
+        <div class="kpi-card" style="--card-accent: #f59e0b;">
+          <div class="kpi-header">
+            <span class="kpi-title">Daily Feed Intake</span>
+            <div class="kpi-icon"><i class="fas fa-bowl-food"></i></div>
+          </div>
+          <div class="kpi-value" id="kpi-feed-intake">109.8 g/bird</div>
+          <div class="kpi-sub">
+            <span>Total: 137.3 Bags (6.86 Tons)</span>
+          </div>
+        </div>
+
+        <div class="kpi-card" style="--card-accent: #06b6d4;">
+          <div class="kpi-header">
+            <span class="kpi-title">Egg Collection Volume</span>
+            <div class="kpi-icon"><i class="fas fa-egg"></i></div>
+          </div>
+          <div class="kpi-value" id="kpi-egg-cases">158 C, 6 TR, 12 PC</div>
+          <div class="kpi-sub">
+            <span>Total 57,080 egg pieces</span>
+          </div>
+        </div>
+
+        <div class="kpi-card" style="--card-accent: #8b5cf6;">
+          <div class="kpi-header">
+            <span class="kpi-title">Feed Conversion (FCR)</span>
+            <div class="kpi-icon"><i class="fas fa-calculator"></i></div>
+          </div>
+          <div class="kpi-value" id="kpi-fcr">2.07</div>
+          <div class="kpi-sub">
+            <span>g Feed per g Egg Mass</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Charts Row -->
+      <div class="grid-2col">
+        <div class="card-container">
+          <div class="card-header">
+            <div class="card-title">
+              <i class="fas fa-chart-area"></i> Laying Rate vs Breed Standard Curve
+            </div>
+          </div>
+          <canvas id="chart-production" height="220"></canvas>
+        </div>
+
+        <div class="card-container">
+          <div class="card-header">
+            <div class="card-title">
+              <i class="fas fa-pie-chart"></i> Egg Quality & Defect Breakdown
+            </div>
+          </div>
+          <canvas id="chart-defects" height="220"></canvas>
+        </div>
+      </div>
+
+      <div class="card-container">
+        <div class="card-header">
+          <div class="card-title">
+            <i class="fas fa-chart-bar"></i> Egg Size Grade Distribution (All & Per Building)
+          </div>
+        </div>
+        <canvas id="chart-size-dist" height="120"></canvas>
+
+        <!-- Egg Distribution Summary (Pieces & Percentage) -->
+        <div style="margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border-color);">
+          <h4 style="font-size: 14px; margin-bottom: 6px; color: var(--accent-info); display: flex; align-items: center; gap: 8px;">
+            <i class="fas fa-list-check"></i> Egg Size Grade Distribution (Pieces & Percentage %)
+          </h4>
+          <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">
+            Displays total egg pieces collected and percentage (%) breakdown per grade for all buildings combined and individually.
+          </p>
+
+          <div class="egg-table-container">
+            <table class="egg-matrix" style="font-size: 11.5px;">
+              <thead>
+                <tr style="background: var(--bg-secondary);">
+                  <th class="building-col">Building</th>
+                  <th>Total Pcs</th>
+                  <th>NNV</th>
+                  <th>NV</th>
+                  <th>NW</th>
+                  <th>PT (Pullet)</th>
+                  <th>PW (Peewee)</th>
+                  <th>S (Small)</th>
+                  <th>M (Medium)</th>
+                  <th>L (Large)</th>
+                  <th>XL (Extra Lg)</th>
+                  <th>J (Jumbo)</th>
+                  <th>SJ (Super J)</th>
+                  <th>BR (Broken)</th>
+                  <th>BO (Bold)</th>
+                </tr>
+              </thead>
+              <tbody id="egg-dist-table-body">
+                <!-- Rendered via JS -->
+              </tbody>
+              <tfoot>
+                <tr class="simplified-row" id="egg-dist-farm-total-row"></tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 2: BUILDING MATRIX -->
+    <section id="tab-buildings" class="tab-content">
+      <div class="card-container">
+        <div class="card-header">
+          <div class="card-title">
+            <i class="fas fa-warehouse"></i> Layer Building Operational Status Matrix
+          </div>
+          <span style="font-size:12px; color:var(--text-muted);">Click any building to isolate data</span>
+        </div>
+        <div class="buildings-grid" id="buildings-grid-container">
+          <!-- Dynamic Building Cards Rendered via JavaScript -->
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 3: EGG COMBINATIONS & BUTAL ANALYSIS -->
+    <section id="tab-egg-matrix" class="tab-content">
+      <div class="card-container">
+        <div class="card-header">
+          <div class="card-title">
+            <i class="fas fa-table-cells"></i> LayerHub Egg Combinations & Butal Analysis
+          </div>
+          <div style="font-size: 12px; color: var(--text-muted);">Standard Conversion: 30 Eggs = 1 Tray • 12 Trays (360 Eggs) = 1 Case</div>
+        </div>
+
+        <!-- 1st Master Table: Combination of Cases & Butal -->
+        <h3 style="margin-top: 10px; margin-bottom: 8px; font-size: 15px; color: var(--accent-success); display: flex; align-items: center; gap: 8px;">
+          <i class="fas fa-boxes-stacked"></i> 1st Table: Master Combination Matrix (Cases CS + Loose Trays TR + Loose Pieces PC)
+        </h3>
+        <p style="font-size:12px; color:var(--text-muted); margin-bottom: 12px;">
+          Displays complete egg yield formatted into 3 sub-columns (CS: Cases, TR: Loose Trays, PC: Loose Pieces) per grade.
+        </p>
+
+        <div class="egg-table-container" style="margin-bottom: 24px;">
+          <table class="egg-matrix" style="font-size: 11.5px;">
+            <thead>
+              <tr style="background: var(--bg-secondary);">
+                <th class="building-col" rowspan="2">Building</th>
+                <th colspan="3">NNV</th>
+                <th colspan="3">NV</th>
+                <th colspan="3">NW</th>
+                <th colspan="3">PT</th>
+                <th colspan="3">PW</th>
+                <th colspan="3">S</th>
+                <th colspan="3">M</th>
+                <th colspan="3">L</th>
+                <th colspan="3">XL</th>
+                <th colspan="3">J</th>
+                <th colspan="3">SJ</th>
+                <th colspan="3">BR</th>
+                <th colspan="3">BO</th>
+              </tr>
+              <tr class="sub-hdr">
+                <th>CS</th><th>TR</th><th>PC</th>
+                <th>CS</th><th>TR</th><th>PC</th>
+                <th>CS</th><th>TR</th><th>PC</th>
+                <th>CS</th><th>TR</th><th>PC</th>
+                <th>CS</th><th>TR</th><th>PC</th>
+                <th>CS</th><th>TR</th><th>PC</th>
+                <th>CS</th><th>TR</th><th>PC</th>
+                <th>CS</th><th>TR</th><th>PC</th>
+                <th>CS</th><th>TR</th><th>PC</th>
+                <th>CS</th><th>TR</th><th>PC</th>
+                <th>CS</th><th>TR</th><th>PC</th>
+                <th>CS</th><th>TR</th><th>PC</th>
+                <th>CS</th><th>TR</th><th>PC</th>
+              </tr>
+            </thead>
+            <tbody id="combined-table-body">
+              <!-- Rendered via JS -->
+            </tbody>
+            <tfoot>
+              <tr class="sum-row" id="combined-sum-row"></tr>
+              <tr class="simplified-row" id="combined-simplified-row"></tr>
+            </tfoot>
+          </table>
+        </div>
+
+        <!-- 2nd Table: Butal / Remainder Eggs -->
+        <h3 style="margin-top: 10px; margin-bottom: 8px; font-size: 15px; color: var(--accent-info);">
+          <i class="fas fa-list-ol"></i> 2nd Table: Butal / Remainder Eggs Only (Loose Trays TR & Pieces PC)
+        </h3>
+        <p style="font-size:12px; color:var(--text-muted); margin-bottom: 12px;">
+          Displays loose, un-cased egg inventory. Excludes complete cases.
+        </p>
+
+        <div class="egg-table-container">
+          <table class="egg-matrix">
+            <thead>
+              <tr style="background: var(--bg-secondary);">
+                <th class="building-col" rowspan="2">Building</th>
+                <th colspan="2">NNV</th>
+                <th colspan="2">NV</th>
+                <th colspan="2">NW</th>
+                <th colspan="2">PT</th>
+                <th colspan="2">PW</th>
+                <th colspan="2">S</th>
+                <th colspan="2">M</th>
+                <th colspan="2">L</th>
+                <th colspan="2">XL</th>
+                <th colspan="2">J</th>
+                <th colspan="2">SJ</th>
+                <th colspan="2">BR</th>
+                <th colspan="2">BO</th>
+              </tr>
+              <tr class="sub-hdr">
+                <th>TR</th><th>PC</th>
+                <th>TR</th><th>PC</th>
+                <th>TR</th><th>PC</th>
+                <th>TR</th><th>PC</th>
+                <th>TR</th><th>PC</th>
+                <th>TR</th><th>PC</th>
+                <th>TR</th><th>PC</th>
+                <th>TR</th><th>PC</th>
+                <th>TR</th><th>PC</th>
+                <th>TR</th><th>PC</th>
+                <th>TR</th><th>PC</th>
+                <th>TR</th><th>PC</th>
+                <th>TR</th><th>PC</th>
+              </tr>
+            </thead>
+            <tbody id="butal-table-body">
+              <!-- Rendered via JS -->
+            </tbody>
+            <tfoot>
+              <tr class="sum-row" id="butal-sum-row"></tr>
+              <tr class="simplified-row" id="butal-simplified-row"></tr>
+            </tfoot>
+          </table>
+        </div>
+
+        <!-- 3rd Table: Complete Cases Only -->
+        <h3 style="margin-top: 24px; margin-bottom: 8px; font-size: 15px; color: var(--accent-primary);">
+          <i class="fas fa-box-archive"></i> 3rd Table: Complete Cases Only (C)
+        </h3>
+        <p style="font-size:12px; color:var(--text-muted); margin-bottom: 12px;">
+          Displays complete 360-piece cases sorted per building and size grade.
+        </p>
+
+        <div class="egg-table-container">
+          <table class="egg-matrix">
+            <thead>
+              <tr style="background: var(--bg-secondary);">
+                <th class="building-col">Building</th>
+                <th>NNV</th>
+                <th>NV</th>
+                <th>NW</th>
+                <th>PT</th>
+                <th>PW</th>
+                <th>S</th>
+                <th>M</th>
+                <th>L</th>
+                <th>XL</th>
+                <th>J</th>
+                <th>SJ</th>
+                <th>BR</th>
+                <th>BO</th>
+              </tr>
+            </thead>
+            <tbody id="cases-table-body">
+              <!-- Rendered via JS -->
+            </tbody>
+            <tfoot>
+              <tr class="sum-row" id="cases-sum-row"></tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 4: MORTALITY & HEALTH LOG -->
+    <section id="tab-mortality" class="tab-content">
+      
+      <!-- Mortality KPI Summary Cards -->
+      <div class="kpi-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin-bottom: 20px;">
+        <div class="kpi-card" style="--card-accent: #ef4444; padding: 16px;">
+          <div class="kpi-header" style="margin-bottom: 4px;">
+            <span class="kpi-title">Total Recorded Mortalities</span>
+            <div class="kpi-icon" style="width:30px; height:30px; font-size:14px;"><i class="fas fa-skull"></i></div>
+          </div>
+          <div class="kpi-value" id="mort-total-count" style="font-size:22px;">284</div>
+          <div class="kpi-sub"><span>Across all building lifecycles</span></div>
+        </div>
+
+        <div class="kpi-card" style="--card-accent: #f59e0b; padding: 16px;">
+          <div class="kpi-header" style="margin-bottom: 4px;">
+            <span class="kpi-title">Selected Date Mortality</span>
+            <div class="kpi-icon" style="width:30px; height:30px; font-size:14px;"><i class="fas fa-calendar-day"></i></div>
+          </div>
+          <div class="kpi-value" id="mort-date-count" style="font-size:22px;">1 bird</div>
+          <div class="kpi-sub"><span id="mort-date-rate" style="color:var(--accent-warning);">0.003% daily rate</span></div>
+        </div>
+
+        <div class="kpi-card" style="--card-accent: #10b981; padding: 16px;">
+          <div class="kpi-header" style="margin-bottom: 4px;">
+            <span class="kpi-title">Top Incident Cause</span>
+            <div class="kpi-icon" style="width:30px; height:30px; font-size:14px;"><i class="fas fa-virus-slash"></i></div>
+          </div>
+          <div class="kpi-value" id="mort-top-cause" style="font-size:18px; color:var(--accent-success);">Prolapse / Heat</div>
+          <div class="kpi-sub"><span>Primary flock mortality factor</span></div>
+        </div>
+
+        <div class="kpi-card" style="--card-accent: #3b82f6; padding: 16px;">
+          <div class="kpi-header" style="margin-bottom: 4px;">
+            <span class="kpi-title">Medication Logs</span>
+            <div class="kpi-icon" style="width:30px; height:30px; font-size:14px;"><i class="fas fa-pills"></i></div>
+          </div>
+          <div class="kpi-value" id="mort-med-count" style="font-size:22px;">266</div>
+          <div class="kpi-sub"><span>Total health interventions logged</span></div>
+        </div>
+      </div>
+
+      <!-- Mortality Analytics Charts -->
+      <div class="grid-2col" style="margin-bottom: 20px;">
+        <div class="card-container">
+          <div class="card-header">
+            <div class="card-title">
+              <i class="fas fa-chart-pie"></i> Mortality Cause Breakdown
+            </div>
+          </div>
+          <canvas id="chart-mortality-cause" height="200"></canvas>
+        </div>
+
+        <div class="card-container">
+          <div class="card-header">
+            <div class="card-title">
+              <i class="fas fa-chart-line"></i> Daily Mortality Trend (Last 14 Days)
+            </div>
+          </div>
+          <canvas id="chart-mortality-trend" height="200"></canvas>
+        </div>
+      </div>
+
+      <!-- Filter & Search Control Bar -->
+      <div class="mortality-filter-bar">
+        <div class="control-group">
+          <span class="control-label"><i class="fas fa-filter"></i> Filter Cause:</span>
+          <select id="mortality-cause-filter" onchange="renderMortalityTable(state.selectedDate)">
+            <option value="all">All Causes / Reasons</option>
+            <option value="prolapsed">Prolapse / Cannibalism</option>
+            <option value="heat">Heat Stress / Dehydration</option>
+            <option value="binding">Egg Binding</option>
+            <option value="natural">Natural / Old Age / Routine</option>
+          </select>
+        </div>
+
+        <div class="search-input-box">
+          <i class="fas fa-search" style="color:var(--text-muted);"></i>
+          <input type="text" id="mortality-search-input" placeholder="Search necropsy notes, building, or medicine..." oninput="renderMortalityTable(state.selectedDate); renderMedicationTable(state.selectedDate);">
+        </div>
+      </div>
+
+      <!-- Stacked Register Cards -->
+      <div class="card-container" style="margin-bottom: 20px;">
+        <div class="card-header">
+          <div class="card-title">
+            <i class="fas fa-notes-medical"></i> Mortality & Necropsy Incident Register
+          </div>
+          <span style="font-size:12px; color:var(--text-muted);">Historical logs sorted by date (newest first)</span>
+        </div>
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Building</th>
+                <th>Date</th>
+                <th>Mortality Count</th>
+                <th>Primary Cause</th>
+                <th>Necropsy Observations & Notes</th>
+              </tr>
+            </thead>
+            <tbody id="mortality-table-body">
+              <!-- Rendered via JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card-container">
+        <div class="card-header">
+          <div class="card-title">
+            <i class="fas fa-pills"></i> Medication & Health Treatment Register
+          </div>
+          <span style="font-size:12px; color:var(--text-muted);">Vaccinations, vitamins, and treatment logs</span>
+        </div>
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Building</th>
+                <th>Date</th>
+                <th>Medicine Name</th>
+                <th>Dosage / Volume</th>
+                <th>Administration Notes</th>
+              </tr>
+            </thead>
+            <tbody id="medication-table-body">
+              <!-- Rendered via JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- TAB 5: WEATHER & ENVIRONMENTAL TRACKER -->
+    <section id="tab-weather" class="tab-content">
+      <div class="card-container">
+        <div class="card-header">
+          <div class="card-title">
+            <i class="fas fa-temperature-high"></i> Environmental & Weather Log
+          </div>
+        </div>
+        <div class="buildings-grid" id="weather-log-container">
+          <!-- Rendered via JS -->
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- SYSTEM ANALYSIS & ARCHITECTURE MODAL -->
+  <div class="modal-backdrop" id="arch-modal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title">
+          <i class="fas fa-microchip" style="color:var(--accent-primary);"></i> LayerHub System Analysis & Technical Architecture
+        </div>
+        <button class="modal-close" id="close-arch-modal"><i class="fas fa-xmark"></i></button>
+      </div>
+      <div class="modal-body">
+        
+        <div class="doc-section">
+          <h3><i class="fas fa-cubes"></i> 1. System Overview & Technology Stack</h3>
+          <p>
+            LayerHub is a production-grade, local-first Flutter Desktop ERP application engineered specifically for commercial layer poultry farms. 
+            It maintains 100% offline functionality using an embedded SQLite engine via Drift ORM with sub-100ms calculation benchmarks.
+          </p>
+          <div class="code-block">
+Framework: Flutter Desktop (Windows target)
+Database Engine: SQLite (via Drift ORM, Schema v19)
+Concurrency Strategy: BackgroundIsolates & LRU Caching
+PRAGMA Configuration: WAL Journal Mode, Synchronous NORMAL, Foreign Keys ON
+          </div>
+        </div>
+
+        <div class="doc-section">
+          <h3><i class="fas fa-database"></i> 2. Entity Relational Schema</h3>
+          <p>
+            The system tracks multi-flock lifecycles, egg production, grading classifications, mortality causes, medication regimes, and environmental metrics.
+          </p>
+          <div class="code-block">
+Buildings (id, farmId, name, capacity, status, assignedFlokman)
+  └─► Flocks (id, buildingId, birdCount, startDate, strain, ageAtLoadingWeeks, isActive)
+        ├─► DailyRecords (date, currentHeads, mortalities, culls, cases, trays, totalPieces, defects, feedBags, weather)
+        ├─► EggSizeRecords (date, eggSizeName, cases, trays, pieces, totalPieces)
+        ├─► Mortalities (date, count, reason)
+        └─► Medications (date, medicineName, dosage, notes)
+          </div>
+        </div>
+
+        <div class="doc-section">
+          <h3><i class="fas fa-calculator"></i> 3. Core Calculation Formulas</h3>
+          <p>
+            Key production metrics are calculated continuously across isolate boundaries:
+          </p>
+          <ul style="color:var(--text-muted); font-size:13px; margin-left: 20px; line-height: 1.8;">
+            <li><strong>Hen-Day Laying Rate (%):</strong> <code>(Total Egg Pieces / (Current Heads + Daily Mortalities + Culls)) * 100</code></li>
+            <li><strong>Feed Intake (g/bird):</strong> <code>(Feed Bags * 50kg * 1000g) / Current Heads</code></li>
+            <li><strong>Feed Conversion Ratio (FCR):</strong> <code>Total Grams Consumed / (Total Egg Pieces * Standard Egg Weight (g))</code></li>
+            <li><strong>Egg Combinations (Butal Math):</strong> <code>1 Case = 12 Trays = 360 Eggs</code>, <code>1 Tray = 30 Eggs</code></li>
+          </ul>
+        </div>
+
+        <div class="doc-section">
+          <h3><i class="fas fa-shield-cat"></i> 4. Security & Audit Trail</h3>
+          <p>
+            LayerHub incorporates Role-Based Access Control (RBAC with Admin, Manager, and Viewer roles) and logs every critical insert, update, or delete in an immutable <code>AuditLogs</code> table.
+          </p>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Breed Performance Standards & Real SQLite System Dataset & App Script -->
+  <script src="layer_standards.js"></script>
+  <script src="real_data.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>
