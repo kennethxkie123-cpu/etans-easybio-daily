@@ -39,32 +39,67 @@ async function syncDataFromDataFolder() {
   }
 
   try {
-    const indexUrls = [
-      "data/index.json",
-      "./data/index.json",
-      "https://raw.githubusercontent.com/kennethxkie123-cpu/etans-easybio-daily/main/data/index.json"
+    // 1. First try loading full system dataset JSON if uploaded (data/full_dataset.json or data/data.json)
+    const fullDatasetUrls = [
+      "data/full_dataset.json",
+      "data/data.json",
+      "./data/full_dataset.json",
+      "./data/data.json",
+      "https://raw.githubusercontent.com/kennethxkie123-cpu/etans-easybio-daily/main/data/full_dataset.json",
+      "https://raw.githubusercontent.com/kennethxkie123-cpu/etans-easybio-daily/main/data/data.json"
     ];
 
-    let indexData = null;
-    for (const url of indexUrls) {
+    let fullDataLoaded = false;
+    for (const url of fullDatasetUrls) {
       try {
         const res = await fetch(url, { cache: "no-store" });
         if (res.ok) {
-          indexData = await res.json();
-          break;
+          const dataset = await res.json();
+          if (dataset && dataset.dates && dataset.buildings) {
+            REAL_SYSTEM_DATA.dates = dataset.dates;
+            REAL_SYSTEM_DATA.latestDate = dataset.latestDate || dataset.dates[dataset.dates.length - 1];
+            REAL_SYSTEM_DATA.buildings = dataset.buildings;
+            if (dataset.flocks) REAL_SYSTEM_DATA.flocks = dataset.flocks;
+            if (dataset.dailyRecordsMap) {
+              if (!REAL_SYSTEM_DATA.dailyRecordsMap) REAL_SYSTEM_DATA.dailyRecordsMap = {};
+              Object.assign(REAL_SYSTEM_DATA.dailyRecordsMap, dataset.dailyRecordsMap);
+            }
+            state.selectedDate = REAL_SYSTEM_DATA.latestDate;
+            fullDataLoaded = true;
+            break;
+          }
         }
       } catch (_) {}
     }
 
-    if (indexData && indexData.dates && indexData.dates.length > 0) {
-      indexData.dates.forEach(d => {
-        if (!REAL_SYSTEM_DATA.dates.includes(d)) {
-          REAL_SYSTEM_DATA.dates.push(d);
+    if (!fullDataLoaded) {
+      const indexUrls = [
+        "data/index.json",
+        "./data/index.json",
+        "https://raw.githubusercontent.com/kennethxkie123-cpu/etans-easybio-daily/main/data/index.json"
+      ];
+
+      let indexData = null;
+      for (const url of indexUrls) {
+        try {
+          const res = await fetch(url, { cache: "no-store" });
+          if (res.ok) {
+            indexData = await res.json();
+            break;
+          }
+        } catch (_) {}
+      }
+
+      if (indexData && indexData.dates && indexData.dates.length > 0) {
+        indexData.dates.forEach(d => {
+          if (!REAL_SYSTEM_DATA.dates.includes(d)) {
+            REAL_SYSTEM_DATA.dates.push(d);
+          }
+        });
+        REAL_SYSTEM_DATA.dates.sort();
+        if (indexData.latestDate) {
+          state.selectedDate = indexData.latestDate;
         }
-      });
-      REAL_SYSTEM_DATA.dates.sort();
-      if (indexData.latestDate) {
-        state.selectedDate = indexData.latestDate;
       }
     }
 
