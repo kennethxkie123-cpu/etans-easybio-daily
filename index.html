@@ -84,6 +84,9 @@
       <div class="nav-tab" data-tab="tab-buildings">
         <div class="nav-tab-label"><i class="fas fa-building"></i> Building Matrix</div>
       </div>
+      <div class="nav-tab" data-tab="tab-flock-record">
+        <i class="fas fa-clipboard-list"></i> Flock Record
+      </div>
       <div class="nav-tab" data-tab="tab-egg-matrix">
         <i class="fas fa-boxes-stacked"></i> Egg Grading & Butal Analysis
       </div>
@@ -255,6 +258,81 @@
         </div>
         <div class="buildings-grid" id="buildings-grid-container">
           <!-- Dynamic Building Cards Rendered via JavaScript -->
+        </div>
+      </div>
+    <!-- TAB: FLOCK RECORD (EXACTLY LIKE LAYERHUB FLUTTER SYSTEM) -->
+    <section id="tab-flock-record" class="tab-content">
+      <div class="card" style="margin-bottom: 24px;">
+        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+          <div>
+            <div class="card-title" id="flock-record-title">
+              <i class="fas fa-clipboard-list" style="color: var(--accent-primary);"></i> Flock Record
+            </div>
+            <div style="font-size: 12px; color: var(--text-muted);" id="flock-record-subtitle">Monthly Flock Performance & Operating Ledger</div>
+          </div>
+
+          <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+            <!-- Building Selector for Flock Record -->
+            <div class="control-group">
+              <span class="control-label"><i class="fas fa-warehouse"></i> Building:</span>
+              <select id="flock-record-building-select" style="padding: 6px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-main); font-weight: 600; font-size: 12px;"></select>
+            </div>
+
+            <!-- Month Selector for Flock Record -->
+            <div class="control-group">
+              <span class="control-label"><i class="fas fa-calendar-alt"></i> Month:</span>
+              <select id="flock-record-month-select" style="padding: 6px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-main); font-weight: 600; font-size: 12px;"></select>
+            </div>
+
+            <!-- Full Screen View Trigger -->
+            <button class="btn btn-outline" id="flock-record-fullscreen-btn">
+              <i class="fas fa-expand"></i> Full View
+            </button>
+
+            <!-- Export CSV -->
+            <button class="btn btn-secondary" id="flock-record-csv-btn">
+              <i class="fas fa-file-csv"></i> Download CSV
+            </button>
+
+            <!-- Print / PDF -->
+            <button class="btn btn-primary" id="flock-record-print-btn">
+              <i class="fas fa-print"></i> Print PDF
+            </button>
+          </div>
+        </div>
+
+        <div class="table-wrapper" style="max-height: 680px; overflow: auto; border: 1px solid var(--border-color); border-radius: var(--radius-md);">
+          <table class="egg-matrix" id="flock-record-table">
+            <thead>
+              <tr style="position: sticky; top: 0; z-index: 10; background: var(--bg-secondary);">
+                <th style="text-align: center;">Date</th>
+                <th style="text-align: center;">Number of Layers</th>
+                <th style="text-align: center;">Age</th>
+                <th style="text-align: center;">Bags (Feeds)</th>
+                <th style="text-align: center;">Feed per bird (g)</th>
+                <th style="text-align: center;">Cases</th>
+                <th style="text-align: center;">Trays</th>
+                <th style="text-align: center;">Total Pieces</th>
+                <th style="text-align: center;">% Egg Prod</th>
+                <th style="text-align: center;">Mortality</th>
+                <th style="text-align: center;">Culls</th>
+                <th style="text-align: center;">Medication 1</th>
+                <th style="text-align: center;">Medication 2</th>
+                <th style="text-align: center;">Medication 3</th>
+                <th style="text-align: center;">Medication 4</th>
+                <th style="text-align: center;">Medication 5</th>
+                <th style="text-align: center;">Weather</th>
+                <th style="text-align: center;">Temperature</th>
+                <th style="text-align: center;">Remarks</th>
+              </tr>
+            </thead>
+            <tbody id="flock-record-table-body">
+              <!-- Dynamically Populated by JS -->
+            </tbody>
+            <tfoot id="flock-record-table-foot">
+              <!-- Dynamic Total Row -->
+            </tfoot>
+          </table>
         </div>
       </div>
     </section>
@@ -625,6 +703,43 @@ Buildings (id, farmId, name, capacity, status, assignedFlokman)
           </p>
         </div>
 
+      </div>
+    </div>
+  <!-- Full Screen Flock Record Modal -->
+  <div class="modal" id="flock-record-modal" style="display: none; position: fixed; inset: 0; z-index: 1000; background: rgba(15, 23, 42, 0.95); padding: 24px; box-sizing: border-box;">
+    <div style="background: var(--bg-card); border-radius: var(--radius-lg); width: 100%; height: 100%; display: flex; flex-direction: column; padding: 24px; border: 1px solid var(--border-color); box-sizing: border-box;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <h2 style="font-size: 20px; font-weight: 800; color: var(--text-main);" id="fullscreen-flock-title"><i class="fas fa-clipboard-list" style="color:var(--accent-primary);"></i> Flock Record - Full View</h2>
+        <button class="btn btn-secondary" id="close-flock-modal-btn"><i class="fas fa-times"></i> Close</button>
+      </div>
+      <div style="flex: 1; overflow: auto; border: 1px solid var(--border-color); border-radius: var(--radius-md);">
+        <table class="egg-matrix" id="fullscreen-flock-table">
+          <thead>
+            <tr style="position: sticky; top: 0; z-index: 10; background: var(--bg-secondary);">
+              <th style="text-align: center;">Date</th>
+              <th style="text-align: center;">Number of Layers</th>
+              <th style="text-align: center;">Age</th>
+              <th style="text-align: center;">Bags (Feeds)</th>
+              <th style="text-align: center;">Feed per bird (g)</th>
+              <th style="text-align: center;">Cases</th>
+              <th style="text-align: center;">Trays</th>
+              <th style="text-align: center;">Total Pieces</th>
+              <th style="text-align: center;">% Egg Prod</th>
+              <th style="text-align: center;">Mortality</th>
+              <th style="text-align: center;">Culls</th>
+              <th style="text-align: center;">Medication 1</th>
+              <th style="text-align: center;">Medication 2</th>
+              <th style="text-align: center;">Medication 3</th>
+              <th style="text-align: center;">Medication 4</th>
+              <th style="text-align: center;">Medication 5</th>
+              <th style="text-align: center;">Weather</th>
+              <th style="text-align: center;">Temperature</th>
+              <th style="text-align: center;">Remarks</th>
+            </tr>
+          </thead>
+          <tbody id="fullscreen-flock-table-body"></tbody>
+          <tfoot id="fullscreen-flock-table-foot"></tfoot>
+        </table>
       </div>
     </div>
   </div>

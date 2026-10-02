@@ -204,6 +204,47 @@ function initializeDateAndBuildingDropdowns() {
     });
     dateInput.value = state.selectedDate;
   }
+
+  initializeFlockRecordDropdowns();
+}
+
+function initializeFlockRecordDropdowns() {
+  const bldSelect = document.getElementById("flock-record-building-select");
+  if (bldSelect && REAL_SYSTEM_DATA.buildings) {
+    const currentVal = bldSelect.value;
+    bldSelect.innerHTML = "";
+    REAL_SYSTEM_DATA.buildings.forEach(b => {
+      bldSelect.innerHTML += `<option value="${b.id}">${b.name} (${b.strain || 'Layer'})</option>`;
+    });
+    if (currentVal && Array.from(bldSelect.options).some(o => o.value === currentVal)) {
+      bldSelect.value = currentVal;
+    }
+  }
+
+  const monthSelect = document.getElementById("flock-record-month-select");
+  if (monthSelect && REAL_SYSTEM_DATA.dates) {
+    const currentVal = monthSelect.value;
+    const monthsSet = new Set();
+    REAL_SYSTEM_DATA.dates.forEach(d => {
+      if (d.length >= 7) monthsSet.add(d.substring(0, 7));
+    });
+    const months = Array.from(monthsSet).sort().reverse();
+    monthSelect.innerHTML = "";
+    months.forEach(m => {
+      const [year, monthNum] = m.split("-");
+      const dateObj = new Date(parseInt(year), parseInt(monthNum) - 1, 1);
+      const monthName = dateObj.toLocaleString("en-US", { month: "long", year: "numeric" });
+      monthSelect.innerHTML += `<option value="${m}">${monthName}</option>`;
+    });
+    if (currentVal && Array.from(monthSelect.options).some(o => o.value === currentVal)) {
+      monthSelect.value = currentVal;
+    } else if (state.selectedDate && state.selectedDate.length >= 7) {
+      const selectedMonth = state.selectedDate.substring(0, 7);
+      if (Array.from(monthSelect.options).some(o => o.value === selectedMonth)) {
+        monthSelect.value = selectedMonth;
+      }
+    }
+  }
 }
 
 function setupEventListeners() {
@@ -243,6 +284,49 @@ function setupEventListeners() {
     });
   }
 
+  // Flock Record Controls
+  const flockBldSelect = document.getElementById("flock-record-building-select");
+  if (flockBldSelect) {
+    flockBldSelect.addEventListener("change", () => {
+      renderFlockRecordTable();
+    });
+  }
+
+  const flockMonthSelect = document.getElementById("flock-record-month-select");
+  if (flockMonthSelect) {
+    flockMonthSelect.addEventListener("change", () => {
+      renderFlockRecordTable();
+    });
+  }
+
+  const fullViewBtn = document.getElementById("flock-record-fullscreen-btn");
+  const flockModal = document.getElementById("flock-record-modal");
+  const closeFlockModalBtn = document.getElementById("close-flock-modal-btn");
+
+  if (fullViewBtn && flockModal) {
+    fullViewBtn.addEventListener("click", () => {
+      flockModal.style.display = "flex";
+      renderFlockRecordTable();
+    });
+  }
+  if (closeFlockModalBtn && flockModal) {
+    closeFlockModalBtn.addEventListener("click", () => {
+      flockModal.style.display = "none";
+    });
+  }
+
+  const flockCsvBtn = document.getElementById("flock-record-csv-btn");
+  if (flockCsvBtn) {
+    flockCsvBtn.addEventListener("click", downloadFlockRecordCSV);
+  }
+
+  const flockPrintBtn = document.getElementById("flock-record-print-btn");
+  if (flockPrintBtn) {
+    flockPrintBtn.addEventListener("click", () => {
+      window.print();
+    });
+  }
+
   // Nav Tabs
   const tabs = document.querySelectorAll(".nav-tab");
   tabs.forEach(tab => {
@@ -254,6 +338,9 @@ function setupEventListeners() {
       document.querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
       const targetContent = document.getElementById(targetId);
       if (targetContent) targetContent.classList.add("active");
+      if (targetId === "tab-flock-record") {
+        renderFlockRecordTable();
+      }
     });
   });
 
@@ -398,6 +485,7 @@ function renderDashboard() {
   renderMedicationTable(date);
   renderWeatherLog(date);
   renderCharts(activeBuildings, date);
+  renderFlockRecordTable();
 }
 
 // Calculate exact flock age in weeks for selected date
@@ -1229,6 +1317,260 @@ function exportCSV() {
   const link = document.createElement("a");
   link.setAttribute("href", encodedUri);
   link.setAttribute("download", `LayerHub_RealData_${date}.download.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
+/**
+ * Basic Math for Egg Production Percentage without rounding off (e.g. 6930/8072 = 85.85%)
+ * Matches LayerHub Flutter ProductionCalculator.formatPercentageNoRounding
+ */
+function formatPercentageNoRounding(val) {
+  if (isNaN(val) || !isFinite(val) || val <= 0) return "0.00%";
+  const str = val.toFixed(10);
+  const parts = str.split('.');
+  const dec = parts[1].substring(0, 2);
+  return parts[0] + "." + dec + "%";
+}
+
+function formatMedicationNotes(medStr) {
+  if (!medStr) return ["", "", "", "", ""];
+  const medSuffixRegex = /\s*-\s*D\s*\d*\s*$/i;
+  const medTimeRegex = /^([^:]+:)\s+/;
+  const medDosageRegex = /\s+(?:[-:]\s*)?(\d+(?:\.\d+)?\s*(?:ml|l|g|kg|mg|cc|mcg|iu|%|\/|bags?|cases?|trays?)(?:[\s/].*)?$)/i;
+
+  const lines = medStr.split('\n').filter(s => s.trim().length > 0);
+  const result = [];
+  for (let i = 0; i < 5; i++) {
+    if (i < lines.length) {
+      let s = lines[i].replace(medSuffixRegex, '').trim();
+      s = s.replace(medTimeRegex, '$1\n');
+      s = s.replace(medDosageRegex, '\n$1');
+      result.push(s);
+    } else {
+      result.push("");
+    }
+  }
+  return result;
+}
+
+/**
+ * Render Flock Record Table exactly matching LayerHub Flutter System
+ */
+function renderFlockRecordTable() {
+  const tableBody = document.getElementById("flock-record-table-body");
+  const tableFoot = document.getElementById("flock-record-table-foot");
+  const modalBody = document.getElementById("fullscreen-flock-table-body");
+  const modalFoot = document.getElementById("fullscreen-flock-table-foot");
+  if (!tableBody) return;
+
+  const bldSelect = document.getElementById("flock-record-building-select");
+  const monthSelect = document.getElementById("flock-record-month-select");
+
+  const bldId = bldSelect ? bldSelect.value : (REAL_SYSTEM_DATA.buildings[0] ? REAL_SYSTEM_DATA.buildings[0].id : 1);
+  const selectedBuilding = REAL_SYSTEM_DATA.buildings.find(b => b.id == bldId) || REAL_SYSTEM_DATA.buildings[0];
+  if (!selectedBuilding) return;
+
+  const monthStr = monthSelect ? monthSelect.value : (state.selectedDate ? state.selectedDate.substring(0, 7) : "2026-09");
+  
+  // Filter dates in month for selected building
+  const monthDates = (REAL_SYSTEM_DATA.dates || []).filter(d => d.startsWith(monthStr)).sort();
+
+  let bodyHtml = "";
+  let totalFeedBags = 0;
+  let totalCases = 0;
+  let totalTrays = 0;
+  let totalPieces = 0;
+  let totalMortalities = 0;
+  let totalCulls = 0;
+  let sumEggProdPercent = 0;
+  let recordCount = 0;
+
+  monthDates.forEach(dateStr => {
+    const flockId = selectedBuilding.flockId;
+    const key = `${dateStr}_${flockId}`;
+    const rec = REAL_SYSTEM_DATA.dailyRecordsMap[key];
+    if (!rec) return;
+
+    recordCount++;
+    const [year, month, day] = dateStr.split("-");
+    const dObj = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+    const dateFormatted = dObj.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    const ageInfo = getFlockAgeForDate(selectedBuilding, dateStr);
+
+    const heads = rec.currentHeads || 0;
+    const feedBags = rec.feedBags || 0;
+    const gramsPerBird = rec.gramsPerBird ? rec.gramsPerBird.toFixed(1) : "0.0";
+    const cases = rec.cases || 0;
+    const trays = rec.trays || 0;
+    const pcs = rec.totalPieces || 0;
+    const mort = rec.mortalities || 0;
+    const culls = rec.culls || 0;
+
+    // Basic Math for Egg Production Percentage without rounding
+    const rawPct = heads > 0 ? (pcs / heads) * 100 : 0;
+    const eggProdStr = formatPercentageNoRounding(rawPct);
+
+    totalFeedBags += feedBags;
+    totalCases += cases;
+    totalTrays += trays;
+    totalPieces += pcs;
+    totalMortalities += mort;
+    totalCulls += culls;
+    sumEggProdPercent += rawPct;
+
+    const medStr = rec.medication || (REAL_SYSTEM_DATA.medications.find(m => m.flockId === flockId && m.date === dateStr)?.notes || "");
+    const meds = formatMedicationNotes(medStr);
+
+    let weatherStr = "";
+    if (rec.weatherAm) weatherStr += `AM: ${rec.weatherAm} `;
+    if (rec.weatherPm) weatherStr += `PM: ${rec.weatherPm}`;
+
+    let tempStr = "";
+    if (rec.temperature !== null && rec.temperature !== undefined) tempStr += `Avg: ${Number(rec.temperature).toFixed(1)}°C `;
+    if (rec.highTemp !== null && rec.highTemp !== undefined) tempStr += `H: ${Number(rec.highTemp).toFixed(1)}°C `;
+    if (rec.lowTemp !== null && rec.lowTemp !== undefined) tempStr += `L: ${Number(rec.lowTemp).toFixed(1)}°C`;
+
+    const remarks = rec.happenings || "";
+
+    bodyHtml += `
+      <tr>
+        <td style="text-align: center; font-weight: 600;">${dateFormatted}</td>
+        <td style="text-align: center;">${heads.toLocaleString()}</td>
+        <td style="text-align: center; font-size: 11px;">${ageInfo.weeks}w ${ageInfo.remDays || 0}d</td>
+        <td style="text-align: center;">${feedBags}</td>
+        <td style="text-align: center;">${gramsPerBird}</td>
+        <td style="text-align: center;">${cases}</td>
+        <td style="text-align: center;">${trays}</td>
+        <td style="text-align: center; font-weight: 600;">${pcs.toLocaleString()}</td>
+        <td style="text-align: center; font-weight: 700; color: var(--accent-success);">${eggProdStr}</td>
+        <td style="text-align: center; color: ${mort > 0 ? 'var(--accent-danger)' : 'inherit'};">${mort}</td>
+        <td style="text-align: center;">${culls}</td>
+        <td style="text-align: center; font-size: 11px; white-space: pre-wrap;">${meds[0]}</td>
+        <td style="text-align: center; font-size: 11px; white-space: pre-wrap;">${meds[1]}</td>
+        <td style="text-align: center; font-size: 11px; white-space: pre-wrap;">${meds[2]}</td>
+        <td style="text-align: center; font-size: 11px; white-space: pre-wrap;">${meds[3]}</td>
+        <td style="text-align: center; font-size: 11px; white-space: pre-wrap;">${meds[4]}</td>
+        <td style="text-align: center; font-size: 11px;">${weatherStr.trim()}</td>
+        <td style="text-align: center; font-size: 11px;">${tempStr.trim()}</td>
+        <td style="text-align: left; font-size: 11px;">${remarks}</td>
+      </tr>
+    `;
+  });
+
+  if (recordCount === 0) {
+    bodyHtml = `<tr><td colspan="19" style="text-align: center; padding: 24px; color: var(--text-muted);">No flock records found for the selected month and building.</td></tr>`;
+  }
+
+  tableBody.innerHTML = bodyHtml;
+  if (modalBody) modalBody.innerHTML = bodyHtml;
+
+  // Render Footer / Total Row
+  let footHtml = "";
+  if (recordCount > 0) {
+    const avgEggProd = sumEggProdPercent / recordCount;
+    const avgEggProdStr = formatPercentageNoRounding(avgEggProd);
+
+    footHtml = `
+      <tr style="background: rgba(59, 130, 246, 0.15); font-weight: 800;">
+        <td style="text-align: center; color: var(--accent-primary);">TOTAL</td>
+        <td style="text-align: center;">-</td>
+        <td style="text-align: center;">-</td>
+        <td style="text-align: center; color: var(--accent-primary);">${parseFloat(totalFeedBags.toFixed(1))}</td>
+        <td style="text-align: center;">-</td>
+        <td style="text-align: center; color: var(--accent-primary);">${totalCases}</td>
+        <td style="text-align: center; color: var(--accent-primary);">${totalTrays}</td>
+        <td style="text-align: center; color: var(--accent-primary);">${totalPieces.toLocaleString()}</td>
+        <td style="text-align: center; color: var(--accent-success);">${avgEggProdStr}</td>
+        <td style="text-align: center; color: var(--accent-danger);">${totalMortalities}</td>
+        <td style="text-align: center;">${totalCulls}</td>
+        <td colspan="8"></td>
+      </tr>
+    `;
+  }
+
+  if (tableFoot) tableFoot.innerHTML = footHtml;
+  if (modalFoot) modalFoot.innerHTML = footHtml;
+
+  // Update Title Subtitle
+  const titleElem = document.getElementById("flock-record-title");
+  if (titleElem) {
+    titleElem.innerHTML = `<i class="fas fa-clipboard-list" style="color: var(--accent-primary);"></i> Flock Record - ${selectedBuilding.name}`;
+  }
+  const modalTitleElem = document.getElementById("fullscreen-flock-title");
+  if (modalTitleElem) {
+    modalTitleElem.innerHTML = `<i class="fas fa-clipboard-list" style="color: var(--accent-primary);"></i> Flock Record - ${selectedBuilding.name} (${monthStr})`;
+  }
+}
+
+function downloadFlockRecordCSV() {
+  const bldSelect = document.getElementById("flock-record-building-select");
+  const monthSelect = document.getElementById("flock-record-month-select");
+
+  const bldId = bldSelect ? bldSelect.value : (REAL_SYSTEM_DATA.buildings[0] ? REAL_SYSTEM_DATA.buildings[0].id : 1);
+  const selectedBuilding = REAL_SYSTEM_DATA.buildings.find(b => b.id == bldId) || REAL_SYSTEM_DATA.buildings[0];
+  const monthStr = monthSelect ? monthSelect.value : (state.selectedDate ? state.selectedDate.substring(0, 7) : "2026-09");
+
+  const monthDates = (REAL_SYSTEM_DATA.dates || []).filter(d => d.startsWith(monthStr)).sort();
+
+  let csvRows = [];
+  csvRows.push([
+    "Date", "Number of Layers", "Age", "Bags (Feeds)", "Feed per bird (g)",
+    "Cases", "Trays", "Total Pieces", "% Egg Prod", "Mortality", "Culls",
+    "Medication 1", "Medication 2", "Medication 3", "Medication 4", "Medication 5",
+    "Weather", "Temperature", "Remarks"
+  ]);
+
+  monthDates.forEach(dateStr => {
+    const flockId = selectedBuilding.flockId;
+    const key = `${dateStr}_${flockId}`;
+    const rec = REAL_SYSTEM_DATA.dailyRecordsMap[key];
+    if (!rec) return;
+
+    const [year, month, day] = dateStr.split("-");
+    const dObj = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+    const dateFormatted = dObj.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    const ageInfo = getFlockAgeForDate(selectedBuilding, dateStr);
+
+    const heads = rec.currentHeads || 0;
+    const feedBags = rec.feedBags || 0;
+    const gramsPerBird = rec.gramsPerBird ? rec.gramsPerBird.toFixed(1) : "0.0";
+    const cases = rec.cases || 0;
+    const trays = rec.trays || 0;
+    const pcs = rec.totalPieces || 0;
+    const mort = rec.mortalities || 0;
+    const culls = rec.culls || 0;
+    const rawPct = heads > 0 ? (pcs / heads) * 100 : 0;
+    const eggProdStr = formatPercentageNoRounding(rawPct);
+
+    const medStr = rec.medication || (REAL_SYSTEM_DATA.medications.find(m => m.flockId === flockId && m.date === dateStr)?.notes || "");
+    const meds = formatMedicationNotes(medStr);
+
+    let weatherStr = "";
+    if (rec.weatherAm) weatherStr += `AM: ${rec.weatherAm} `;
+    if (rec.weatherPm) weatherStr += `PM: ${rec.weatherPm}`;
+
+    let tempStr = "";
+    if (rec.temperature !== null && rec.temperature !== undefined) tempStr += `Avg: ${Number(rec.temperature).toFixed(1)}°C `;
+    if (rec.highTemp !== null && rec.highTemp !== undefined) tempStr += `H: ${Number(rec.highTemp).toFixed(1)}°C `;
+    if (rec.lowTemp !== null && rec.lowTemp !== undefined) tempStr += `L: ${Number(rec.lowTemp).toFixed(1)}°C`;
+
+    const remarks = rec.happenings || "";
+
+    csvRows.push([
+      `"${dateFormatted}"`, heads, `"${ageInfo.weeks}w ${ageInfo.remDays || 0}d"`, feedBags, gramsPerBird,
+      cases, trays, pcs, `"${eggProdStr}"`, mort, culls,
+      `"${meds[0]}"`, `"${meds[1]}"`, `"${meds[2]}"`, `"${meds[3]}"`, `"${meds[4]}"`,
+      `"${weatherStr.trim()}"`, `"${tempStr.trim()}"`, `"${remarks.replace(/"/g, '""')}"`
+    ]);
+  });
+
+  const csvContent = "data:text/csv;charset=utf-8," + csvRows.map(e => e.join(",")).join("\n");
+  const encodedUri = encodeURI(csvContent);
+  const link = document.createElement("a");
+  link.setAttribute("href", encodedUri);
+  link.setAttribute("download", `FlockRecord_${selectedBuilding.name.replace(/\s+/g, '_')}_${monthStr}.csv`);
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
