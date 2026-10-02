@@ -144,43 +144,91 @@ async function loadDailyReportFromDataFolder(dateStr) {
 }
 
 function applyDailyReportToSystemData(report) {
-  if (!report || !report.buildings) return;
+  if (!report) return;
   const targetDate = report.date || state.selectedDate;
 
-  if (!REAL_SYSTEM_DATA.dailyRecords) {
-    REAL_SYSTEM_DATA.dailyRecords = {};
+  if (report.buildings && Array.isArray(report.buildings)) {
+    report.buildings.forEach(b => {
+      const bldgId = b.buildingId || b.id;
+      if (!bldgId) return;
+
+      let bObj = REAL_SYSTEM_DATA.buildings.find(x => x.id == bldgId);
+      if (bObj) {
+        if (b.currentHeads) bObj.birdCount = b.currentHeads;
+        if (b.assignedFlokman || b.flockman) bObj.assignedFlokman = b.assignedFlokman || b.flockman;
+        if (b.strain) bObj.strain = b.strain;
+        if (b.ageWeeks !== undefined) bObj.ageWeeks = b.ageWeeks;
+        if (b.ageDays !== undefined) bObj.ageDays = b.ageDays;
+      }
+
+      if (!REAL_SYSTEM_DATA.dailyRecordsMap) {
+        REAL_SYSTEM_DATA.dailyRecordsMap = {};
+      }
+
+      const flockId = b.flockId || bldgId;
+      const key = `${targetDate}_${flockId}`;
+      REAL_SYSTEM_DATA.dailyRecordsMap[key] = {
+        date: targetDate,
+        flockId: flockId,
+        currentHeads: b.currentHeads || 0,
+        cases: b.cases || 0,
+        trays: b.trays || 0,
+        totalPieces: b.totalPieces || 0,
+        feedBags: b.feedBags || 0,
+        gramsPerBird: b.gramsPerBird || 0,
+        feedBrand: b.feedBrand || '',
+        mortalities: b.mortalities || 0,
+        culls: b.culls || 0,
+        eggProductionPercentage: b.eggProductionPercentage || 0,
+        medication: b.medication || '',
+        happenings: b.happenings || '',
+        weatherAm: b.weatherAm || '',
+        weatherPm: b.weatherPm || '',
+        temperature: b.temperature !== undefined ? b.temperature : null,
+        highTemp: b.highTemp !== undefined ? b.highTemp : null,
+        lowTemp: b.lowTemp !== undefined ? b.lowTemp : null,
+        eggSizes: b.eggSizes || {}
+      };
+    });
   }
 
-  report.buildings.forEach(b => {
-    const bldgId = b.buildingId || b.id;
-    if (!bldgId) return;
+  if (report.flocks && Array.isArray(report.flocks) && report.flocks.length > 0) {
+    REAL_SYSTEM_DATA.flocks = report.flocks;
+  }
 
-    if (!REAL_SYSTEM_DATA.dailyRecords[bldgId]) {
-      REAL_SYSTEM_DATA.dailyRecords[bldgId] = {};
-    }
+  if (report.dailyRecordsMap) {
+    if (!REAL_SYSTEM_DATA.dailyRecordsMap) REAL_SYSTEM_DATA.dailyRecordsMap = {};
+    Object.assign(REAL_SYSTEM_DATA.dailyRecordsMap, report.dailyRecordsMap);
+  }
 
-    REAL_SYSTEM_DATA.dailyRecords[bldgId][targetDate] = {
-      date: targetDate,
-      currentHeads: b.currentHeads || 0,
-      cases: b.cases || 0,
-      trays: b.trays || 0,
-      totalPieces: b.totalPieces || 0,
-      feedBags: b.feedBags || 0,
-      gramsPerBird: b.gramsPerBird || 0,
-      feedBrand: b.feedBrand || '',
-      mortalities: b.mortalities || 0,
-      culls: b.culls || 0,
-      eggProductionPercentage: b.eggProductionPercentage || 0,
-      medication: b.medication || '',
-      happenings: b.happenings || '',
-      weatherAm: b.weatherAm || '',
-      weatherPm: b.weatherPm || '',
-      temperature: b.temperature || null,
-      highTemp: b.highTemp || null,
-      lowTemp: b.lowTemp || null,
-      eggSizes: b.eggSizes || {}
-    };
-  });
+  if (report.eggSizesMap) {
+    if (!REAL_SYSTEM_DATA.eggSizesMap) REAL_SYSTEM_DATA.eggSizesMap = {};
+    Object.assign(REAL_SYSTEM_DATA.eggSizesMap, report.eggSizesMap);
+  }
+
+  if (report.mortalities && Array.isArray(report.mortalities)) {
+    if (!REAL_SYSTEM_DATA.mortalities) REAL_SYSTEM_DATA.mortalities = [];
+    report.mortalities.forEach(m => {
+      const exists = REAL_SYSTEM_DATA.mortalities.some(
+        x => x.flockId === m.flockId && x.date === m.date && x.reason === m.reason
+      );
+      if (!exists) {
+        REAL_SYSTEM_DATA.mortalities.push(m);
+      }
+    });
+  }
+
+  if (report.medications && Array.isArray(report.medications)) {
+    if (!REAL_SYSTEM_DATA.medications) REAL_SYSTEM_DATA.medications = [];
+    report.medications.forEach(m => {
+      const exists = REAL_SYSTEM_DATA.medications.some(
+        x => x.flockId === m.flockId && x.date === m.date && x.medicineName === m.medicineName
+      );
+      if (!exists) {
+        REAL_SYSTEM_DATA.medications.push(m);
+      }
+    });
+  }
 }
 
 function initializeDateAndBuildingDropdowns() {
