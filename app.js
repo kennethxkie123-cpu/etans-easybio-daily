@@ -22,14 +22,131 @@ let state = {
   charts: {}
 };
 
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
   if (typeof REAL_SYSTEM_DATA !== "undefined" && REAL_SYSTEM_DATA.latestDate) {
     state.selectedDate = REAL_SYSTEM_DATA.latestDate;
   }
   initializeDateAndBuildingDropdowns();
   setupEventListeners();
   renderDashboard();
+  await syncDataFromDataFolder();
 });
+
+async function syncDataFromDataFolder() {
+  const syncBtn = document.getElementById("sync-data-btn");
+  if (syncBtn) {
+    syncBtn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Syncing /data...`;
+  }
+
+  try {
+    const indexUrls = [
+      "data/index.json",
+      "./data/index.json",
+      "https://raw.githubusercontent.com/kennethxkie123-cpu/etans-easybio-daily/main/data/index.json"
+    ];
+
+    let indexData = null;
+    for (const url of indexUrls) {
+      try {
+        const res = await fetch(url, { cache: "no-store" });
+        if (res.ok) {
+          indexData = await res.json();
+          break;
+        }
+      } catch (_) {}
+    }
+
+    if (indexData && indexData.dates && indexData.dates.length > 0) {
+      indexData.dates.forEach(d => {
+        if (!REAL_SYSTEM_DATA.dates.includes(d)) {
+          REAL_SYSTEM_DATA.dates.push(d);
+        }
+      });
+      REAL_SYSTEM_DATA.dates.sort();
+      if (indexData.latestDate) {
+        state.selectedDate = indexData.latestDate;
+      }
+    }
+
+    await loadDailyReportFromDataFolder(state.selectedDate);
+
+    initializeDateAndBuildingDropdowns();
+    renderDashboard();
+
+    if (syncBtn) {
+      syncBtn.innerHTML = `<i class="fas fa-check-circle" style="color:#10B981;"></i> Synced: /data`;
+    }
+  } catch (err) {
+    console.warn("Data sync from /data folder:", err);
+    if (syncBtn) {
+      syncBtn.innerHTML = `<i class="fas fa-cloud"></i> Synced: /data`;
+    }
+  }
+}
+
+async function loadDailyReportFromDataFolder(dateStr) {
+  const urls = [
+    `data/${dateStr}.json`,
+    `./data/${dateStr}.json`,
+    "data/latest.json",
+    `https://raw.githubusercontent.com/kennethxkie123-cpu/etans-easybio-daily/main/data/${dateStr}.json`,
+    "https://raw.githubusercontent.com/kennethxkie123-cpu/etans-easybio-daily/main/data/latest.json"
+  ];
+
+  for (const url of urls) {
+    try {
+      const res = await fetch(url, { cache: "no-store" });
+      if (res.ok) {
+        const report = await res.json();
+        if (report && report.buildings) {
+          applyDailyReportToSystemData(report);
+          return true;
+        }
+      }
+    } catch (_) {}
+  }
+  return false;
+}
+
+function applyDailyReportToSystemData(report) {
+  if (!report || !report.buildings) return;
+  const targetDate = report.date || state.selectedDate;
+
+  if (!REAL_SYSTEM_DATA.dailyRecords) {
+    REAL_SYSTEM_DATA.dailyRecords = {};
+  }
+
+  report.buildings.forEach(b => {
+    const bldgId = b.buildingId || b.id;
+    if (!bldgId) return;
+
+    if (!REAL_SYSTEM_DATA.dailyRecords[bldgId]) {
+      REAL_SYSTEM_DATA.dailyRecords[bldgId] = {};
+    }
+
+    REAL_SYSTEM_DATA.dailyRecords[bldgId][targetDate] = {
+      date: targetDate,
+      currentHeads: b.currentHeads || 0,
+      cases: b.cases || 0,
+      trays: b.trays || 0,
+      totalPieces: b.totalPieces || 0,
+      feedBags: b.feedBags || 0,
+      gramsPerBird: b.gramsPerBird || 0,
+      feedBrand: b.feedBrand || '',
+      mortalities: b.mortalities || 0,
+      culls: b.culls || 0,
+      eggProductionPercentage: b.eggProductionPercentage || 0,
+      medication: b.medication || '',
+      happenings: b.happenings || '',
+      weatherAm: b.weatherAm || '',
+      weatherPm: b.weatherPm || '',
+      temperature: b.temperature || null,
+      highTemp: b.highTemp || null,
+      lowTemp: b.lowTemp || null,
+      eggSizes: b.eggSizes || {}
+    };
+  });
+}
 
 function initializeDateAndBuildingDropdowns() {
   // Populate Building Dropdown from REAL_SYSTEM_DATA
@@ -55,6 +172,13 @@ function initializeDateAndBuildingDropdowns() {
 }
 
 function setupEventListeners() {
+  const syncBtn = document.getElementById("sync-data-btn");
+  if (syncBtn) {
+    syncBtn.addEventListener("click", () => {
+      syncDataFromDataFolder();
+    });
+  }
+
   const bldSelect = document.getElementById("building-select");
   if (bldSelect) {
     bldSelect.addEventListener("change", (e) => {
@@ -65,8 +189,9 @@ function setupEventListeners() {
 
   const dateInput = document.getElementById("date-select");
   if (dateInput) {
-    dateInput.addEventListener("change", (e) => {
+    dateInput.addEventListener("change", async (e) => {
       state.selectedDate = e.target.value;
+      await loadDailyReportFromDataFolder(state.selectedDate);
       renderDashboard();
     });
   }
