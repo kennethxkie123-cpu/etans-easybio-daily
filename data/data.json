@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-02T21:02:12.028973Z",
+  "generatedAt": "2026-10-02T21:05:55.766335Z",
   "dates": [
     "2026-07-11",
     "2026-07-12",
@@ -13394,13 +13394,13 @@
       "currentHeads": 7116,
       "mortalities": 5,
       "culls": 0,
-      "cases": 10,
+      "cases": 16,
       "trays": 10,
-      "totalPieces": 3900,
+      "totalPieces": 6060,
       "feedBags": 16.0,
       "gramsPerBird": 112.4,
       "feedBrand": "Layer 1 -Agri Specialist",
-      "eggProductionPercentage": 54.8,
+      "eggProductionPercentage": 85.16,
       "medication": "0600H: amino acid 80ml/400L-D7\n1400H:  Liverplex 400ml/400L-D5",
       "happenings": "50% ifeed+ 50% ASI",
       "weatherAm": "Rain Showers (25.9°C)",
