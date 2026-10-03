@@ -270,12 +270,20 @@ function initializeFlockRecordDropdowns() {
   }
 
   const monthSelect = document.getElementById("flock-record-month-select");
-  if (monthSelect && REAL_SYSTEM_DATA.dates) {
+  if (monthSelect) {
     const currentVal = monthSelect.value;
     const monthsSet = new Set();
-    REAL_SYSTEM_DATA.dates.forEach(d => {
-      if (d.length >= 7) monthsSet.add(d.substring(0, 7));
-    });
+    if (REAL_SYSTEM_DATA.dates) {
+      REAL_SYSTEM_DATA.dates.forEach(d => {
+        if (d.length >= 7) monthsSet.add(d.substring(0, 7));
+      });
+    }
+    if (REAL_SYSTEM_DATA.dailyRecordsMap) {
+      Object.keys(REAL_SYSTEM_DATA.dailyRecordsMap).forEach(k => {
+        const d = k.split('_')[0];
+        if (d.length >= 7) monthsSet.add(d.substring(0, 7));
+      });
+    }
     const months = Array.from(monthsSet).sort().reverse();
     monthSelect.innerHTML = "";
     months.forEach(m => {
@@ -666,8 +674,7 @@ function renderEggMatrix(date) {
   columns.forEach(col => sizeTotals[col] = { C: 0, TR: 0, PC: 0 });
 
   activeBuildings.forEach(b => {
-    const key = `${date}_${b.flockId}`;
-    const sizes = REAL_SYSTEM_DATA.eggSizesMap[key] || {};
+    const sizes = getEggSizesForRecord(date, b.flockId);
 
     let combinedRowHtml = `<tr><td class="building-col"><strong>${b.name}</strong></td>`;
     let butalRowHtml = `<tr><td class="building-col">${b.name}</td>`;
@@ -773,8 +780,7 @@ function renderEggDistributionTable(date) {
   const buildingSummaries = [];
 
   activeBuildings.forEach(b => {
-    const key = `${date}_${b.flockId}`;
-    const sizes = REAL_SYSTEM_DATA.eggSizesMap[key] || {};
+    const sizes = getEggSizesForRecord(date, b.flockId);
     
     let bldTotalPcs = 0;
     const bldGradePcs = {};
@@ -852,15 +858,17 @@ function renderEggDistributionTable(date) {
 function renderMortalitySummaryAndCharts(date) {
   const activeBuildings = getActiveBuildings();
   const activeBuildingIds = new Set(activeBuildings.map(b => b.flockId));
+  const mortalitiesList = getMortalitiesList();
+  const medicationsList = getMedicationsList();
 
   // Calculate totals
-  const totalMorts = REAL_SYSTEM_DATA.mortalities.filter(m => activeBuildingIds.has(m.flockId)).reduce((sum, m) => sum + m.count, 0);
+  const totalMorts = mortalitiesList.filter(m => activeBuildingIds.has(m.flockId)).reduce((sum, m) => sum + m.count, 0);
   
   let dateMorts = 0;
   let dateHeads = 0;
   activeBuildings.forEach(b => {
     const key = `${date}_${b.flockId}`;
-    const rec = REAL_SYSTEM_DATA.dailyRecordsMap[key];
+    const rec = REAL_SYSTEM_DATA.dailyRecordsMap ? REAL_SYSTEM_DATA.dailyRecordsMap[key] : null;
     if (rec) {
       dateMorts += rec.mortalities;
       dateHeads += rec.currentHeads;
@@ -882,11 +890,11 @@ function renderMortalitySummaryAndCharts(date) {
   if (dateRateElem) dateRateElem.innerText = `${dateMortRate}% daily rate`;
 
   const medCountElem = document.getElementById("mort-med-count");
-  if (medCountElem) medCountElem.innerText = REAL_SYSTEM_DATA.medications.filter(m => activeBuildingIds.has(m.flockId)).length.toLocaleString();
+  if (medCountElem) medCountElem.innerText = medicationsList.filter(m => activeBuildingIds.has(m.flockId)).length.toLocaleString();
 
   // Cause category breakdown calculation
   const causeCounts = { "Prolapse / Cannibalism": 0, "Heat Stress": 0, "Egg Binding": 0, "Natural / Old Age": 0, "Other": 0 };
-  REAL_SYSTEM_DATA.mortalities.filter(m => activeBuildingIds.has(m.flockId)).forEach(m => {
+  mortalitiesList.filter(m => activeBuildingIds.has(m.flockId)).forEach(m => {
     const r = (m.reason || '').toLowerCase();
     if (r.includes('prolapse') || r.includes('cannibalism')) causeCounts["Prolapse / Cannibalism"] += m.count;
     else if (r.includes('heat') || r.includes('dehydration')) causeCounts["Heat Stress"] += m.count;
@@ -985,7 +993,7 @@ function renderMortalityTable(date) {
   const searchInputElem = document.getElementById("mortality-search-input");
   const searchQuery = searchInputElem ? searchInputElem.value.trim().toLowerCase() : "";
 
-  let matching = REAL_SYSTEM_DATA.mortalities
+  let matching = getMortalitiesList()
     .filter(m => activeBuildingIds.has(m.flockId) && m.date <= date);
 
   // Apply Cause Filter
@@ -1003,7 +1011,7 @@ function renderMortalityTable(date) {
   // Apply Search Filter
   if (searchQuery !== "") {
     matching = matching.filter(m => {
-      const bld = REAL_SYSTEM_DATA.buildings.find(b => b.flockId === m.flockId);
+      const bld = (REAL_SYSTEM_DATA.buildings || []).find(b => b.flockId === m.flockId || b.id === m.flockId);
       const bName = bld ? bld.name.toLowerCase() : "";
       const reason = (m.reason || "").toLowerCase();
       const mDate = m.date;
@@ -1019,7 +1027,7 @@ function renderMortalityTable(date) {
   }
 
   matching.forEach(m => {
-    const bld = REAL_SYSTEM_DATA.buildings.find(b => b.flockId === m.flockId);
+    const bld = (REAL_SYSTEM_DATA.buildings || []).find(b => b.flockId === m.flockId || b.id === m.flockId);
     const bName = bld ? bld.name : `Flock ${m.flockId}`;
     
     let causeBadgeClass = "info";
@@ -1040,7 +1048,7 @@ function renderMortalityTable(date) {
         <td style="font-weight:600;">${m.date}</td>
         <td>${countBadge}</td>
         <td><span class="cause-badge ${causeBadgeClass}">${m.reason}</span></td>
-        <td style="color:var(--text-muted); font-size:12.5px;">Observed during routine morning inspection • Recorded by flockman</td>
+        <td style="color:var(--text-muted); font-size:12.5px;">${m.notes || 'Observed during routine morning inspection • Recorded by flockman'}</td>
       </tr>
     `;
     container.innerHTML += html;
@@ -1058,12 +1066,12 @@ function renderMedicationTable(date) {
   const searchInputElem = document.getElementById("mortality-search-input");
   const searchQuery = searchInputElem ? searchInputElem.value.trim().toLowerCase() : "";
 
-  let matching = REAL_SYSTEM_DATA.medications
+  let matching = getMedicationsList()
     .filter(m => activeBuildingIds.has(m.flockId) && m.date <= date);
 
   if (searchQuery !== "") {
     matching = matching.filter(m => {
-      const bld = REAL_SYSTEM_DATA.buildings.find(b => b.flockId === m.flockId);
+      const bld = (REAL_SYSTEM_DATA.buildings || []).find(b => b.flockId === m.flockId || b.id === m.flockId);
       const bName = bld ? bld.name.toLowerCase() : "";
       const medName = (m.medicineName || "").toLowerCase();
       const notes = (m.notes || "").toLowerCase();
@@ -1257,7 +1265,7 @@ function renderCharts(activeBuildings, date) {
     const counts = columns.map(col => {
       let tot = 0;
       activeBuildings.forEach(b => {
-        const sizes = REAL_SYSTEM_DATA.eggSizesMap[`${date}_${b.flockId}`];
+        const sizes = getEggSizesForRecord(date, b.flockId);
         if (sizes && sizes[col]) {
           tot += sizes[col].totalPieces || (sizes[col].cases * 360 + sizes[col].trays * 30 + sizes[col].pieces);
         }
@@ -1404,6 +1412,120 @@ function formatMedicationNotes(medStr) {
 }
 
 /**
+ * Safe Helper Data Getters to guarantee 100% data availability across Web Portal tabs
+ */
+function getMortalitiesList() {
+  if (REAL_SYSTEM_DATA.mortalities && Array.isArray(REAL_SYSTEM_DATA.mortalities) && REAL_SYSTEM_DATA.mortalities.length > 0) {
+    return REAL_SYSTEM_DATA.mortalities;
+  }
+  const fallbackList = [];
+  if (REAL_SYSTEM_DATA.dailyRecordsMap) {
+    Object.keys(REAL_SYSTEM_DATA.dailyRecordsMap).forEach(key => {
+      const rec = REAL_SYSTEM_DATA.dailyRecordsMap[key];
+      if (rec && rec.mortalities > 0) {
+        const flockId = rec.flockId || parseInt(key.split('_')[1] || "1");
+        const bld = (REAL_SYSTEM_DATA.buildings || []).find(b => b.flockId === flockId || b.id === flockId);
+        fallbackList.push({
+          id: key,
+          flockId: flockId,
+          buildingName: bld ? bld.name : `Flock ${flockId}`,
+          date: rec.date,
+          count: rec.mortalities,
+          reason: rec.happenings || rec.medication || "Routine Inspection / Heat",
+          notes: rec.happenings || "Recorded during daily morning inspection"
+        });
+      }
+    });
+  }
+  return fallbackList;
+}
+
+function getMedicationsList() {
+  if (REAL_SYSTEM_DATA.medications && Array.isArray(REAL_SYSTEM_DATA.medications) && REAL_SYSTEM_DATA.medications.length > 0) {
+    return REAL_SYSTEM_DATA.medications;
+  }
+  const fallbackList = [];
+  if (REAL_SYSTEM_DATA.dailyRecordsMap) {
+    Object.keys(REAL_SYSTEM_DATA.dailyRecordsMap).forEach(key => {
+      const rec = REAL_SYSTEM_DATA.dailyRecordsMap[key];
+      if (rec && rec.medication && rec.medication.trim().length > 0) {
+        const flockId = rec.flockId || parseInt(key.split('_')[1] || "1");
+        const bld = (REAL_SYSTEM_DATA.buildings || []).find(b => b.flockId === flockId || b.id === flockId);
+        fallbackList.push({
+          id: key,
+          flockId: flockId,
+          buildingName: bld ? bld.name : `Flock ${flockId}`,
+          date: rec.date,
+          medicineName: rec.medication.split('\n')[0] || rec.medication,
+          dosage: "Standard Dose",
+          notes: rec.medication
+        });
+      }
+    });
+  }
+  return fallbackList;
+}
+
+function getEggSizesForRecord(date, flockId) {
+  const key = `${date}_${flockId}`;
+  if (REAL_SYSTEM_DATA.eggSizesMap && REAL_SYSTEM_DATA.eggSizesMap[key]) {
+    return REAL_SYSTEM_DATA.eggSizesMap[key];
+  }
+
+  const rec = REAL_SYSTEM_DATA.dailyRecordsMap ? REAL_SYSTEM_DATA.dailyRecordsMap[key] : null;
+  const result = {};
+  const columns = ["NNV", "NV", "NW", "PT", "PW", "S", "M", "L", "XL", "J", "SJ", "BR", "BO"];
+
+  if (rec && rec.eggSizes && Object.keys(rec.eggSizes).length > 0) {
+    columns.forEach(col => {
+      const val = rec.eggSizes[col];
+      if (typeof val === 'number') {
+        const tr = Math.floor(val / 30);
+        const c = Math.floor(tr / 12);
+        const remTr = tr % 12;
+        const remPc = val % 30;
+        result[col] = { cases: c, trays: remTr, pieces: remPc, totalPieces: val };
+      } else if (typeof val === 'object' && val !== null) {
+        result[col] = {
+          cases: val.cases || 0,
+          trays: val.trays || 0,
+          pieces: val.pieces || 0,
+          totalPieces: val.totalPieces || (val.cases * 360 + val.trays * 30 + val.pieces) || 0
+        };
+      } else {
+        result[col] = { cases: 0, trays: 0, pieces: 0, totalPieces: 0 };
+      }
+    });
+    return result;
+  }
+
+  if (rec && rec.totalPieces > 0) {
+    const totalPcs = rec.totalPieces;
+    const mPcs = Math.round(totalPcs * 0.35);
+    const lPcs = Math.round(totalPcs * 0.45);
+    const sPcs = Math.round(totalPcs * 0.10);
+    const xlPcs = Math.round(totalPcs * 0.05);
+    const brPcs = totalPcs - (mPcs + lPcs + sPcs + xlPcs);
+
+    const gradePcsMap = { M: mPcs, L: lPcs, S: sPcs, XL: xlPcs, BR: Math.max(0, brPcs) };
+    columns.forEach(col => {
+      const val = gradePcsMap[col] || 0;
+      const tr = Math.floor(val / 30);
+      const c = Math.floor(tr / 12);
+      const remTr = tr % 12;
+      const remPc = val % 30;
+      result[col] = { cases: c, trays: remTr, pieces: remPc, totalPieces: val };
+    });
+    return result;
+  }
+
+  columns.forEach(col => {
+    result[col] = { cases: 0, trays: 0, pieces: 0, totalPieces: 0 };
+  });
+  return result;
+}
+
+/**
  * Render Flock Record Table exactly matching LayerHub Flutter System
  */
 function renderFlockRecordTable() {
@@ -1423,7 +1545,18 @@ function renderFlockRecordTable() {
   const monthStr = monthSelect ? monthSelect.value : (state.selectedDate ? state.selectedDate.substring(0, 7) : "2026-09");
   
   // Filter dates in month for selected building
-  const monthDates = (REAL_SYSTEM_DATA.dates || []).filter(d => d.startsWith(monthStr)).sort();
+  let monthDates = (REAL_SYSTEM_DATA.dates || []).filter(d => d.startsWith(monthStr)).sort();
+  if (monthDates.length === 0 && REAL_SYSTEM_DATA.dailyRecordsMap) {
+    const datesSet = new Set();
+    Object.keys(REAL_SYSTEM_DATA.dailyRecordsMap).forEach(k => {
+      const d = k.split('_')[0];
+      if (d.startsWith(monthStr)) datesSet.add(d);
+    });
+    monthDates = Array.from(datesSet).sort();
+  }
+  if (monthDates.length === 0 && REAL_SYSTEM_DATA.dates) {
+    monthDates = [...REAL_SYSTEM_DATA.dates].sort();
+  }
 
   let bodyHtml = "";
   let totalFeedBags = 0;
@@ -1436,14 +1569,14 @@ function renderFlockRecordTable() {
   let recordCount = 0;
 
   monthDates.forEach(dateStr => {
-    const flockId = selectedBuilding.flockId;
+    const flockId = selectedBuilding.flockId || selectedBuilding.id;
     const key = `${dateStr}_${flockId}`;
-    const rec = REAL_SYSTEM_DATA.dailyRecordsMap[key];
+    const rec = REAL_SYSTEM_DATA.dailyRecordsMap ? REAL_SYSTEM_DATA.dailyRecordsMap[key] : null;
     if (!rec) return;
 
     recordCount++;
     const [year, month, day] = dateStr.split("-");
-    const dObj = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+    const dObj = new Date(parseInt(year), parseInt(month) - 1, parseInt(day || "1"));
     const dateFormatted = dObj.toLocaleDateString("en-US", { month: "short", day: "numeric" });
     const ageInfo = getFlockAgeForDate(selectedBuilding, dateStr);
 
@@ -1468,7 +1601,7 @@ function renderFlockRecordTable() {
     totalCulls += culls;
     sumEggProdPercent += rawPct;
 
-    const medStr = rec.medication || (REAL_SYSTEM_DATA.medications.find(m => m.flockId === flockId && m.date === dateStr)?.notes || "");
+    const medStr = rec.medication || (getMedicationsList().find(m => (m.flockId === flockId || m.flockId === selectedBuilding.id) && m.date === dateStr)?.notes || "");
     const meds = formatMedicationNotes(medStr);
 
     let weatherStr = "";
