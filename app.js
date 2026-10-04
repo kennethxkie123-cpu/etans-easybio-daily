@@ -394,8 +394,23 @@ function setupEventListeners() {
       document.querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
       const targetContent = document.getElementById(targetId);
       if (targetContent) targetContent.classList.add("active");
+
+      const date = state.selectedDate;
       if (targetId === "tab-flock-record") {
         renderFlockRecordTable();
+      } else if (targetId === "tab-egg-matrix") {
+        renderEggMatrix(date);
+        renderEggDistributionTable(date);
+      } else if (targetId === "tab-mortality") {
+        renderMortalitySummaryAndCharts(date);
+        renderMortalityTable(date);
+        renderMedicationTable(date);
+      } else if (targetId === "tab-weather") {
+        renderWeatherLog(date);
+      } else if (targetId === "tab-buildings") {
+        renderBuildingCards(date);
+      } else if (targetId === "tab-summary") {
+        renderDashboard();
       }
     });
   });
